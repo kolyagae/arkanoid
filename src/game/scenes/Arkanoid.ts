@@ -4,6 +4,7 @@ import ScoreLabel from "../../ui/ScoreLabel";
 import LivesLabel from "../../ui/LivesLabel";
 import gameConstants from "../../constants/gameConstants";
 import LevelLabel from "../../ui/LevelLabel";
+import { Button } from "../../ui/Button";
 
 const brickInfo = {
     width: 80,
@@ -22,7 +23,6 @@ export class Arkanoid extends Scene {
     private ball: Phaser.Physics.Arcade.Sprite;
     private paddle: Phaser.Physics.Arcade.Sprite;
     private bricks: Phaser.Physics.Arcade.StaticGroup;
-    private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     private velocity: number = physicsConstants.baseBallVelocity;
     private scoreLabel: ScoreLabel;
     private livesLabel: LivesLabel;
@@ -41,30 +41,24 @@ export class Arkanoid extends Scene {
     }
 
     create() {
-        this.createBackground();
+        this.add.image(0, 0, "background").setOrigin(0, 0);
         this.topWall = this.createTopWall();
         this.paddle = this.createPaddle();
         this.ball = this.createBall();
-        this.setupInput();
         this.bricks = this.createBricks(
             brickInfo.count.row,
             brickInfo.count.col
         );
 
-        this.scoreLabel = this.createScoreLabel(8, 8, 0);
-        this.livesLabel = this.createLivesLabel(
-            725,
-            8,
-            gameConstants.startingLives
-        );
-        this.levelLabel = this.createLevelLabel(360, 8, 0);
+        this.scoreLabel = this.createScoreLabel();
+        this.livesLabel = this.createLivesLabel();
+        this.levelLabel = this.createLevelLabel();
 
         this.setupCollisions();
 
         this.input.on("pointerdown", () => {
             if (!this.ballLaunched) {
                 this.setBallInitialDirection();
-                this.ballLaunched = true;
             }
         });
     }
@@ -78,17 +72,14 @@ export class Arkanoid extends Scene {
         this.load.audio("brickHitSound", "assets/brickHitSound.mp3");
     }
 
-    private createBackground() {
-        this.add.image(0, 0, "background").setOrigin(0, 0);
-    }
-
     private createTopWall() {
-        const graphics = this.add.graphics();
-        graphics.fillStyle(0x000000, 1);
-        graphics.fillRect(0, 40, this.cameras.main.width, 2);
+        this.add
+            .graphics()
+            .fillStyle(0x000000, 1)
+            .fillRect(0, 40, this.cameras.main.width, 2);
 
-        const topWall = this.physics.add.staticGroup();
-        topWall
+        const topWall = this.physics.add
+            .staticGroup()
             .create(this.cameras.main.centerX, 40, "")
             .setSize(this.cameras.main.width, 1)
             .setVisible(false);
@@ -125,7 +116,7 @@ export class Arkanoid extends Scene {
             (_: Phaser.Physics.Arcade.Body, __: boolean, down: boolean) => {
                 if (down) {
                     const gameOver = this.livesLabel.removeLife();
-                    this.resetBallPaddlePosition(this.ball);
+                    this.resetBallPosition();
 
                     if (gameOver) {
                         this.handleGameOver();
@@ -137,10 +128,7 @@ export class Arkanoid extends Scene {
         return ball;
     }
 
-    private createBricks(
-        rows: number,
-        cols: number
-    ): Phaser.Physics.Arcade.StaticGroup {
+    private createBricks(rows: number, cols: number) {
         const totalWidth = cols * brickInfo.width - brickInfo.offset.left;
         const offsetLeft = (this.scale.width - totalWidth) / 2;
 
@@ -158,44 +146,50 @@ export class Arkanoid extends Scene {
         return bricks;
     }
 
-    private createScoreLabel(x: number, y: number, score: number) {
+    private createLabel<T extends Phaser.GameObjects.Text>(
+        LabelClass: new (
+            scene: Phaser.Scene,
+            x: number,
+            y: number,
+            value: number,
+            style: Phaser.Types.GameObjects.Text.TextStyle
+        ) => T,
+        x: number,
+        y: number,
+        value: number
+    ): T {
         const style = {
             fontSize: "20px",
-            fontFamily: "Ariel",
+            fontFamily: "Arial",
             strokeThickness: 0.6,
             fill: "#000",
         };
-        const label = new ScoreLabel(this, x, y, score, style);
+        const label = new LabelClass(this, x, y, value, style);
 
         this.add.existing(label);
 
         return label;
     }
 
-    private createLevelLabel(x: number, y: number, level: number) {
-        const style = {
-            fontSize: "20px",
-            fontFamily: "Ariel",
-            strokeThickness: 0.6,
-            fill: "#000",
-        };
-        const label = new LevelLabel(this, x, y, level, style);
-
-        this.add.existing(label);
+    private createScoreLabel() {
+        const label = this.createLabel(ScoreLabel, 8, 8, 0);
 
         return label;
     }
 
-    private createLivesLabel(x: number, y: number, lives: number) {
-        const style = {
-            fontSize: "20px",
-            fontFamily: "Ariel",
-            strokeThickness: 0.6,
-            fill: "#000",
-        };
-        const label = new LivesLabel(this, x, y, lives, style);
+    private createLevelLabel() {
+        const label = this.createLabel(LevelLabel, 360, 8, 0);
 
-        this.add.existing(label);
+        return label;
+    }
+
+    private createLivesLabel() {
+        const label = this.createLabel(
+            LivesLabel,
+            725,
+            8,
+            gameConstants.startingLives
+        );
 
         return label;
     }
@@ -211,19 +205,21 @@ export class Arkanoid extends Scene {
         const randomIndex = Phaser.Math.Between(0, directions.length - 1);
         const direction = directions[randomIndex];
         this.ball.setVelocity(direction.x, direction.y);
+        this.ballLaunched = true;
     }
 
-    setBallVelocity(ball: Phaser.Physics.Arcade.Sprite) {
+    updateBallVelocity() {
         const multiplier =
             this.level > 0
                 ? Math.pow(physicsConstants.speedMultiplier, this.level)
                 : 1;
         this.velocity *= multiplier;
-        ball.setVelocity(this.velocity, -this.velocity);
+
+        this.ball.setVelocity(this.velocity, -this.velocity);
     }
 
-    resetBallPaddlePosition(ball: Phaser.Physics.Arcade.Sprite) {
-        ball.setVelocity(0, 0);
+    resetBallPosition() {
+        this.ball.setVelocity(0, 0);
         this.ballLaunched = false;
     }
 
@@ -284,7 +280,7 @@ export class Arkanoid extends Scene {
         }
     }
 
-    resetLevel() {
+    private resetLevel() {
         this.levelLabel.addClear();
         this.level += 1;
 
@@ -294,59 +290,28 @@ export class Arkanoid extends Scene {
 
             this.showGameCompleteMessage("You won!");
         } else {
-            this.setBallVelocity(this.ball);
-            this.resetBallPaddlePosition(this.ball);
+            this.updateBallVelocity();
+            this.resetBallPosition();
             this.repopulateBricks();
         }
     }
 
-    showGameCompleteMessage(message: string) {
-        const buttonWidth = 300;
-        const buttonHeight = 100;
-
-        this.add
-            .text(
-                this.cameras.main.centerX,
-                this.cameras.main.centerY - buttonHeight,
-                message,
-                { fontSize: "24px" }
-            )
-            .setOrigin(0.5);
-
-        const button = this.add.rectangle(
-            this.cameras.main.centerX,
-            this.cameras.main.centerY,
-            buttonWidth,
-            buttonHeight,
-            0x007acc
-        );
-        button.setOrigin(0.5);
-        button.setStrokeStyle(4, 0xffffff);
-
-        const buttonText = this.add.text(
+    private showGameCompleteMessage(message: string) {
+        new Button(
+            this,
             this.cameras.main.centerX,
             this.cameras.main.centerY,
             "Play Again",
-            {
-                fontSize: "28px",
-                color: "#FFFFFF",
-                fontStyle: "bold",
-            }
+            message,
+            () => this.restartGame()
         );
-        buttonText.setOrigin(0.5);
-        button.setInteractive();
-
-        button.on("pointerdown", () => {
-            this.level = 0;
-            this.ballLaunched = false;
-            brickInfo.count.row = 4;
-            brickInfo.count.col = 4;
-            this.scene.restart();
-        });
     }
 
-    restartGame() {
+    private restartGame() {
         this.level = 0;
+        this.ballLaunched = false;
+        brickInfo.count.row = 4;
+        brickInfo.count.col = 4;
         this.scene.restart();
     }
 
@@ -389,12 +354,6 @@ export class Arkanoid extends Scene {
         this.setupPaddleCollisions();
         this.setupBrickCollisions();
         this.physics.add.collider(this.ball, this.topWall);
-    }
-
-    private setupInput() {
-        if (this.input.keyboard) {
-            this.cursors = this.input.keyboard.createCursorKeys();
-        }
     }
 
     update() {
